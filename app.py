@@ -234,5 +234,3 @@ if analyze_button and transcript_input and gemini_api_key:
 
 elif analyze_button and not gemini_api_key:
     st.error("Please enter your Gemini API Key to run the analysis.")
-
-You now have a robust, Gemini-powered AI Interview Analyzer that provides structured feedback and data visualizations!
