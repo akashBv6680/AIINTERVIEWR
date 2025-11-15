@@ -19,24 +19,29 @@ def call_gemini(prompt, api_key, format_json=False):
     """
     headers = {"Content-Type": "application/json"}
     
-    config = {}
-    if format_json:
-        # Instruction to force JSON output
-        config["response_mime_type"] = "application/json"
-        
+    # 1. Start with the mandatory contents field
     data = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "config": config,
     }
     
+    # 2. Add the configuration field ONLY if requesting JSON format
+    if format_json:
+        # **CORRECTION**: 'generationConfig' must be at the root level alongside 'contents'
+        data["generationConfig"] = {
+            "responseMimeType": "application/json"
+            # We rely on the detailed instruction in the prompt to define the schema
+        }
+        
     endpoint = f"{GEMINI_API_URL}?key={api_key}"
     
     try:
+        # Pass the constructed data dictionary to requests.post
         res = requests.post(endpoint, headers=headers, json=data)
         res.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
         output = res.json()
         
         # Safely extract the text response
+        # Note: For JSON output, the text contains the JSON string
         return output["candidates"][0]["content"]["parts"][0]["text"]
     except requests.exceptions.HTTPError as http_err:
         error_msg = f"Gemini API HTTP Error: {http_err} - {res.text}"
@@ -92,7 +97,7 @@ def generate_analysis_prompt(transcript, domain, round_type):
     {transcript}
     ---
     
-    Generate the final analysis STRICTLY as a single JSON object that conforms to this schema:
+    Generate the final analysis STRICTLY as a single JSON object that conforms to this schema. DO NOT include any text outside the JSON block.
     {JSON_SCHEMA}
     """
     return prompt
@@ -116,7 +121,6 @@ domain = st.sidebar.selectbox("Domain/Industry", ["Tech/IT", "Managerial/Leaders
 round_type = st.sidebar.selectbox("Round Type", ["One-on-One Interview", "Group Discussion", "Presentation/Pitch"], index=0)
 
 # API Key
-# Best practice for Streamlit Cloud deployment
 if "GEMINI_API_KEY" in st.secrets:
     gemini_api_key = st.secrets["GEMINI_API_KEY"]
     st.sidebar.success("Gemini API Key loaded from `st.secrets`.")
@@ -153,6 +157,7 @@ if analyze_button and transcript_input and gemini_api_key:
     
     with st.spinner("🚀 AI Mentor is analyzing the conversation..."):
         prompt = generate_analysis_prompt(transcript_input, domain, round_type)
+        # Request JSON output here
         json_output = call_gemini(prompt, gemini_api_key, format_json=True)
 
     try:
@@ -184,6 +189,7 @@ if analyze_button and transcript_input and gemini_api_key:
         scores_a = report_data['feedback_speaker_A']
         scores_b = report_data['feedback_speaker_B']
         
+        # Ensure scores are integers before plotting
         metrics_df = pd.DataFrame({
             'Metric': ['Confidence', 'Clarity', 'Empathy'],
             'Speaker A': [int(scores_a['confidence_score']), int(scores_a['clarity_score']), int(scores_a['empathy_score'])],
@@ -229,8 +235,11 @@ if analyze_button and transcript_input and gemini_api_key:
                 st.markdown(f"- **{item}**")
                 
     except json.JSONDecodeError:
-        st.error("AI Analysis failed to return valid JSON. This usually happens with very long or complex inputs, or a temporary API error.")
+        st.error("AI Analysis failed to return valid JSON. This usually happens if the model response format is broken. Please check the raw output below.")
         st.code(json_output) # Show raw output for debugging
+    except KeyError as ke:
+        st.error(f"AI Analysis failed to find expected key in JSON structure. Key missing: {ke}. Please check the raw output below.")
+        st.code(json_output)
 
 elif analyze_button and not gemini_api_key:
     st.error("Please enter your Gemini API Key to run the analysis.")
