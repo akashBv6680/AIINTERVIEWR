@@ -26,22 +26,19 @@ def call_gemini(prompt, api_key, format_json=False):
     
     # 2. Add the configuration field ONLY if requesting JSON format
     if format_json:
-        # **CORRECTION**: 'generationConfig' must be at the root level alongside 'contents'
+        # **FINAL FIX**: Use snake_case 'response_mime_type' for the REST API
         data["generationConfig"] = {
-            "responseMimeType": "application/json"
-            # We rely on the detailed instruction in the prompt to define the schema
+            "response_mime_type": "application/json"
         }
         
     endpoint = f"{GEMINI_API_URL}?key={api_key}"
     
     try:
-        # Pass the constructed data dictionary to requests.post
         res = requests.post(endpoint, headers=headers, json=data)
         res.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
         output = res.json()
         
-        # Safely extract the text response
-        # Note: For JSON output, the text contains the JSON string
+        # Safely extract the text response (which contains the JSON string)
         return output["candidates"][0]["content"]["parts"][0]["text"]
     except requests.exceptions.HTTPError as http_err:
         error_msg = f"Gemini API HTTP Error: {http_err} - {res.text}"
