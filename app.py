@@ -2,7 +2,6 @@ import streamlit as st
 import tempfile
 import requests
 import os
-
 # NOTE: This application requires two external dependencies:
 # 1. The google-genai library (for analysis)
 # 2. The openai library (for Whisper transcription)
